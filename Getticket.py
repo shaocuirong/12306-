@@ -13,7 +13,7 @@ from urllib.parse import unquote
 
 class GetTicket:
     def __init__(self):
-        self.user = user  #用户信息
+        self.user = user    #用户信息
         self.tickets = {}    #当天车票信息
         self._REPEAT_SUBMIT_TOKEN = ""    #全局重复提交令牌
         self._key_check_isChange = ""    #是否修改密钥
@@ -286,7 +286,8 @@ class GetTicket:
     '''
     def get_ticket_info(self):
         # 获取车票信息
-        url = f'https://kyfw.12306.cn/otn/leftTicket/query?leftTicketDTO.train_date={self.user.train_date}&leftTicketDTO.from_station={self.user.from_station}&leftTicketDTO.to_station={self.user.to_station}&purpose_codes=ADULT'
+        url = f'https://kyfw.12306.cn/otn/leftTicket/query?leftTicketDTO.train_date={self.user.train_date}&leftTicketDTO.from_station={self.user.CITYCODE[self.user.start_station]}&leftTicketDTO.to_station={self.user.CITYCODE[self.user.end_station]}&purpose_codes=ADULT'
+        print(url)
         headers = {
             "Host": "kyfw.12306.cn",
             "Connection": "keep-alive",
@@ -304,41 +305,40 @@ class GetTicket:
             "Accept-Encoding": "gzip, deflate, br, zstd",
             "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
         }
-        response = self.session.get(url,headers=headers)
-        # 检查响应状态码
-        if response.status_code == 200:
-            try:
-                # 解析 JSON 数据
-                data = response.json()
-
-                # 检查返回数据是否有效
-                if data.get("data") is None:
-                    print("未获取到车票信息")
-                    return None
-
-                # 提取车票信息
-                train_info_list = data["data"]["result"]
-                # 遍历车票信息，提取必要数据
-                for train_info in train_info_list:
-                    info = train_info.split("|")
-                    self.tickets[info[3]] = {
-                        'all_trainname': info[2],
-                        'from_station_name': info[6],  # 出发站
-                        'to_station_name': info[7],  # 到达站
-                        'start_time': info[8],  # 出发时间
-                        'arrive_time': info[9],  # 到达时间
-                        'seat_types': info[11],  # 座位类型
-                        'left_ticket': info[12],  # 剩余票数
-                        'train_location': info[15],  # 车次位置
-                        'seat_discount_info': info[-3],  # 座位优惠信息
-                        'secret_str': info[0]  # 加密的字符串
-                    }
-            except requests.exceptions.JSONDecodeError:
-                print("解析返回内容失败，返回内容可能不是 JSON 格式")
-                print("返回内容：", response.text)
+        try:
+            response = self.session.get(url,headers=headers)
+            # 检查响应状态码
+            # 解析 JSON 数据
+            data = response.json()
+            # 检查返回数据是否有效
+            if data.get("data") is None:
+                print("未获取到车票信息")
                 return None
-        else:
-            print(f"请求失败，状态码: {response.status_code}")
+
+            # 提取车票信息
+            train_info_list = data["data"]["result"]
+            # 遍历车票信息，提取必要数据
+            # print(train_info_list)
+            for train_info in train_info_list:
+                info = train_info.split("|")
+                self.tickets[info[3]] = {
+                    'all_trainname': info[2],
+                    'from_station_name': info[6],  # 出发站
+                    'to_station_name': info[7],  # 到达站
+                    'start_time': info[8],  # 出发时间
+                    'arrive_time': info[9],  # 到达时间
+                    'seat_types': info[11],  # 座位类型
+                    'left_ticket': info[12],  # 剩余票数
+                    'train_location': info[15],  # 车次位置
+                    'seat_discount_info': info[-3],  # 座位优惠信息
+                    'secret_str': info[0]  # 加密的字符串
+                }
+            print('获取车票信息成功')
+            # print(self.tickets)
+            return 1
+        except requests.exceptions.JSONDecodeError:
+            print('获取内容失败，官方未出票')
+            return 0
 
     '''
     生成 _uab_collina Cookie 值。
@@ -397,10 +397,10 @@ class GetTicket:
         }
         # 更新cookies
         self.session.cookies.set('_jc_save_fromStation',
-                            ''.join([f"%u{ord(c):04X}" for c in self.user.start_city + ","]) + self.user.from_station,
+                            ''.join([f"%u{ord(c):04X}" for c in self.user.start_city + ","]) + self.user.CITYCODE[self.user.start_station],
                                  domain='kyfw.12306.cn')
         self.session.cookies.set('_jc_save_toStation',
-                            ''.join([f"%u{ord(c):04X}" for c in self.user.end_city + ","]) + self.user.from_station,
+                            ''.join([f"%u{ord(c):04X}" for c in self.user.end_city + ","]) + self.user.CITYCODE[self.user.end_station],
                                  domain='kyfw.12306.cn')
         self.session.cookies.set('_jc_save_fromDate', self.user.train_date, domain='kyfw.12306.cn')
         self.session.cookies.set('_jc_save_toDate', str(datetime.today().date()), domain='kyfw.12306.cn')
@@ -563,8 +563,8 @@ class GetTicket:
             "train_no": self.tickets[train]["all_trainname"],
             "stationTrainCode": train,
             "seatType": self.user.TICKET_CLASS,
-            "fromStationTelecode": self.user.from_station,
-            "toStationTelecode": self.user.to_station,
+            "fromStationTelecode": self.user.CITYCODE[self.user.end_station],
+            "toStationTelecode": self.user.CITYCODE[self.user.start_station],
             "leftTicket": self.tickets[train]["left_ticket"],
             "purpose_codes": "00",  # 购买车票的用途，00表示普通购票
             "train_location": self.tickets[train]['train_location'],
@@ -604,9 +604,9 @@ class GetTicket:
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
         })
         data = {
-            'passengerTicketStr': f"{self.user.TICKET_CLASS},{self.user.GENDER},1,{self.user.NAME},1,{self.user.ID},{self.user.PHONE_NUMBER},N,{self._allEncStr}",
+            'passengerTicketStr': f"{self.user.TICKET_CLASS},0,1,{self.user.NAME},1,{self.user.ID},{self.user.PHONE_NUMBER},N,{self._allEncStr}",
             'oldPassengerStr': f"{self.user.NAME},1,{self.user.ID},1_",
-            'randCode': '',
+            # 'randCode': '',
             'purpose_codes': '00',
             'key_check_isChange': self._key_check_isChange,
             'leftTicketStr': self.tickets[train]["left_ticket"],
@@ -622,15 +622,22 @@ class GetTicket:
             '_json_att': '',
             'REPEAT_SUBMIT_TOKEN': self._REPEAT_SUBMIT_TOKEN  # 1.1.19获取
         }
-        # print(data)
+        print(data)
         uab_collina_value = self.generate_uab_collina()
         self.session.cookies.update({'_uab_collina': uab_collina_value})
         response = self.session.post(url, data=data)
+        print(response.text)
         if response.status_code == 200:
             response = response.json()
-            if response['data']["submitStatus"]:
+            if response['status']:
                 print("确认订单成功！")
             else:
+                data['randCode'] = ''
+                uab_collina_value = self.generate_uab_collina()
+                self.session.cookies.update({'_uab_collina': uab_collina_value})
+                response = self.session.post(url, data=data)
+                if response['data']["submitStatus"]:
+                    print("确认订单成功！")
                 print("确认订单失败！")
         else:
             print(f"请求失败，状态码：{response.status_code}，响应内容：{response.text}")
@@ -710,7 +717,13 @@ class GetTicket:
     '''
     def run(self):
         # 获取车票信息
-        self.get_ticket_info()
+        while True:
+            # time.sleep(0.1) #等待0.1秒
+            result = self.get_ticket_info()
+            if  not result:
+                time.sleep(0.25)
+            else:
+                break
         try_time = 0
         max_try_time = 5
         while try_time < max_try_time:
@@ -737,8 +750,6 @@ class GetTicket:
                 else:
                     try_time += 1
         return 0
-
-
 
 
 

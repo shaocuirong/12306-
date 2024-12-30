@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from datetime import datetime
+from tkcalendar import DateEntry  # 导入tkcalendar中的DateEntry
 import Getticket
 import time
 import json
@@ -16,7 +17,7 @@ class TicketUI:
     def __init__(self, root):
         self.root = root
         self.root.title("12306 抢票助手")
-        self.root.geometry("700x700")
+        self.root.geometry("800x700")
 
         # 定义座位类别和限制条件
         self.seat_options = {
@@ -106,20 +107,23 @@ class TicketUI:
         self.start_city_entry.grid(row=0, column=1, padx=5)
 
         tk.Label(self.trip_frame, text="出发车站:", font=("楷体", 12)).grid(row=0, column=2, padx=5)
-        self.start_station_entry = tk.Entry(self.trip_frame, width=20, font=("楷体", 12))
+        self.start_station_entry = ttk.Combobox(self.trip_frame, width=20, font=("楷体", 12))
         self.start_station_entry.grid(row=0, column=3, padx=5)
+        self.start_station_entry.bind('<KeyRelease>', self.update_start_combobox)
 
         tk.Label(self.trip_frame, text="目的城市:", font=("楷体", 12)).grid(row=1, column=0, padx=5)
         self.end_city_entry = tk.Entry(self.trip_frame, width=20, font=("楷体", 12))
         self.end_city_entry.grid(row=1, column=1, padx=5)
 
         tk.Label(self.trip_frame, text="目的车站:", font=("楷体", 12)).grid(row=1, column=2, padx=5)
-        self.end_station_entry = tk.Entry(self.trip_frame, width=20, font=("楷体", 12))
+        self.end_station_entry = ttk.Combobox(self.trip_frame, width=20, font=("楷体", 12))
         self.end_station_entry.grid(row=1, column=3, padx=5)
+        self.end_station_entry.bind('<KeyRelease>', self.update_end_combobox)
 
         tk.Label(self.trip_frame, text="乘车日期(YYYY-MM-DD):", font=("楷体", 12)).grid(row=2, column=0, padx=5)
-        self.date_entry = tk.Entry(self.trip_frame, width=20, font=("楷体", 12))
+        self.date_entry = DateEntry(self.trip_frame, width=18, font=("楷体", 12), date_pattern='yyyy-mm-dd')
         self.date_entry.grid(row=2, column=1, padx=5)
+        # self.date_entry.grid(row=2, column=1, padx=5)
 
         tk.Label(self.trip_frame, text="车次列表 (逗号分隔):", font=("楷体", 12)).grid(row=2, column=2, padx=5)
         self.train_id_entry = tk.Entry(self.trip_frame, width=25, font=("楷体", 12))
@@ -130,13 +134,42 @@ class TicketUI:
         self.target_time_label.pack(pady=5)
         self.target_time_entry = tk.Entry(self.root, width=30, font=("楷体", 12))
         self.target_time_entry.pack(pady=5)
-
         # 操作按钮
         self.login_button = tk.Button(self.root, text="登录", font=("楷体", 12), command=self.start_login_thread)
         self.login_button.pack(pady=5)
 
         self.start_button = tk.Button(self.root, text="开始抢票", font=("楷体", 12), command=self.start_ticket_grab_thread)
         self.start_button.pack(pady=5)
+
+    # 更新Combobox的内容
+    def update_start_combobox(self,event):
+        query = self.start_station_entry.get().lower()  # 获取输入并转为小写
+        matched_items = []
+
+        # 根据输入的内容匹配字典的键
+        if query:
+            for key in web.user.CITYCODE.keys():
+                if query in key.lower():  # 如果字典键包含输入字符
+                    matched_items.append(key)
+        # 更新Combobox的内容，只显示前5项匹配
+        self.start_station_entry['values'] = matched_items[:5]
+        current_text = self.start_station_entry.get()
+        if current_text not in matched_items:
+            self.start_station_entry.set(current_text)  # 保持原本输入的文本
+    # 更新Combobox的内容
+    def update_end_combobox(self, event):
+        query = self.end_station_entry.get().lower()  # 获取输入并转为小写
+        matched_items = []
+        # 根据输入的内容匹配字典的键
+        if query:
+            for key in web.user.CITYCODE.keys():
+                if query in key.lower():  # 如果字典键包含输入字符
+                    matched_items.append(key)
+        # 更新Combobox的内容，只显示前5项匹配
+        self.end_station_entry['values'] = matched_items[:5]
+        current_text = self.end_station_entry.get()
+        if current_text not in matched_items:
+            self.end_station_entry.set(current_text)  # 保持原本输入的文本
 
     def log(self, message):
         """记录日志信息并实时更新界面"""
@@ -228,6 +261,7 @@ class TicketUI:
                 # 判断当前时间是到达目标时间
                 if now >= target_time:
                     # 执行抢票程序
+                    # time.sleep(0.1)
                     self.log("抢票时间到达，开始抢票...")
                     web.run()
                     result = web.check_login_status()
@@ -258,7 +292,7 @@ class TicketUI:
             "start_station": self.start_station_entry.get().strip(),
             "end_city": self.end_city_entry.get().strip(),
             "end_station": self.end_station_entry.get().strip(),
-            "train_date": self.date_entry.get().strip(),
+            # "train_date": self.date_entry.get().strip(),
             "train_id_list": self.train_id_entry.get().strip(),
             "target_time": self.target_time_entry.get().strip()
         }
@@ -281,7 +315,7 @@ class TicketUI:
                 self.start_station_entry.insert(0, data.get("start_station", ""))
                 self.end_city_entry.insert(0, data.get("end_city", ""))
                 self.end_station_entry.insert(0, data.get("end_station", ""))
-                self.date_entry.insert(0, data.get("train_date", ""))
+                # self.date_entry.insert(0, data.get("train_date", ""))
                 self.train_id_entry.insert(0, data.get("train_id_list", ""))
                 self.target_time_entry.insert(0, data.get("target_time", ""))
                 self.log("用户数据已加载！")
